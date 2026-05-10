@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BIRDIX</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  #hud {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0a1a0a;
+    border-bottom: 1px solid #1a6a1a;
+    padding: 6px 8px;
+    flex-shrink: 0;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .hud-item { font-size: 6px; color: #44aa44; letter-spacing: 1px; white-space: nowrap; }
+  .hud-item span { color: #00ff66; }
+
+  #menuBtn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 5px;
+    background: #0a2a0a;
+    color: #44aa44;
+    border: 1px solid #2a6a2a;
+    padding: 4px 6px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  #menuBtn:active { background: #1a4a1a; color: #00ff66; }
+
+  #gameWrapper {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    flex: 1;
+    overflow: hidden;
+    background: #000;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  #progressBar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: #0a1a0a;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #progressFill { height:100%; background:#00ff44; width:0%; }
+  #progressMark {
+    position: absolute; top:0;
+    width:1px; height:3px;
+    background:#fff; left:80%;
+  }
+
+  #dpad {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: grid;
+    grid-template-columns: 40px 40px 40px;
+    grid-template-rows: 40px 40px 40px;
+    gap: 3px;
+    opacity: 0.7;
+    z-index: 20;
+  }
+  .db {
+    background: #0a2a0a;
+    border: 1px solid #2a6a2a;
+    color: #44aa44;
+    font-size: 14px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .db:active, .db.on { background:#1a4a1a; color:#00ff66; border-color:#00ff66; }
+  .db-blank { background:transparent; border-color:transparent; }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,10,0,0.94);
+    color: #00ff66;
+    text-align: center;
+    padding: 24px 20px;
+    gap: 16px;
+    z-index: 30;
+  }
+  .screen h1 {
+    font-size: 24px;
+    color: #00ff66;
+    text-shadow: 0 0 20px #00ff66, 0 0 40px #00cc44;
+    letter-spacing: 4px;
+    animation: flicker 4s infinite;
+  }
+  @keyframes flicker {
+    0%,94%,100%{opacity:1} 95%{opacity:0.6} 97%{opacity:0.8} 98%{opacity:0.4} 99%{opacity:1}
+  }
+  .screen .sub { font-size: 6px; color: #44aa44; line-height: 2.3; }
+  .screen .stat { font-size: 8px; color: #66cc66; line-height: 2.4; }
+  .scr-btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    background: transparent;
+    color: #00ff66;
+    border: 1px solid #00ff66;
+    padding: 10px 20px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    animation: blink 1s step-end infinite;
+  }
+  .scr-btn-sm {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    background: transparent;
+    color: #44aa44;
+    border: 1px solid #2a6a2a;
+    padding: 8px 14px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .scr-btn-sm:active { color:#00ff66; border-color:#00ff66; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+  .scr-btn:active { background:#00ff6622; }
+
+  #bannerScreen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,8,0,0.88);
+    color: #00ff66;
+    gap: 14px;
+    z-index: 30;
+    pointer-events: none;
+  }
+  #bannerScreen h2 { font-size: 20px; text-shadow: 0 0 16px #00ff66; }
+  #bannerScreen p  { font-size: 7px; color: #44aa44; }
+
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="hud-item">LVL <span id="hudLevel">1</span></div>
+  <div class="hud-item">CLAIMED <span id="hudPct">0</span>%</div>
+  <div class="hud-item">LIVES <span id="hudLives">3</span></div>
+  <div class="hud-item">SCORE <span id="hudScore">0</span></div>
+  <button id="menuBtn">MENU</button>
+</div>
+
+<div id="gameWrapper">
+  <canvas id="c"></canvas>
+  <div id="progressBar"><div id="progressFill"></div><div id="progressMark"></div></div>
+
+  <div id="dpad">
+    <div class="db db-blank"></div>
+    <div class="db" id="btnU">▲</div>
+    <div class="db db-blank"></div>
+    <div class="db" id="btnL">◀</div>
+    <div class="db db-blank"></div>
+    <div class="db" id="btnR">▶</div>
+    <div class="db db-blank"></div>
+    <div class="db" id="btnD">▼</div>
+    <div class="db db-blank"></div>
+  </div>
+
+  <div class="screen" id="menuScreen">
+    <h1>BIRDIX</h1>
+    <div class="sub">
+      FLY YOUR BIRD ALONG THE BORDER<br>
+      DRAW LINES TO CLAIM TERRITORY<br>
+      CAPTURE 80% OF THE FIELD<br>
+      ─────────────────────<br>
+      ENEMY BIRDS DESTROY YOUR LINE<br>
+      CONNECT BACK TO SAFETY TO FILL
+    </div>
+    <div class="sub" style="color:#0d3a0d">ARROW KEYS OR D-PAD TO MOVE</div>
+    <button class="scr-btn" id="startBtn">► START GAME</button>
+  </div>
+
+  <div class="screen hidden" id="gameOverScreen">
+    <h1>GAME<br>OVER</h1>
+    <div class="stat" id="goStats"></div>
+    <button class="scr-btn" id="retryBtn">► RETRY</button>
+    <button class="scr-btn-sm" id="goMenuBtn">MAIN MENU</button>
+  </div>
+
+  <div id="bannerScreen" class="hidden">
+    <h2 id="bannerTitle">LEVEL 1</h2>
+    <p id="bannerSub">GET READY!</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const TILE         = 4;
+const COLS         = 160;
+const ROWS         = 200;
+const W            = COLS * TILE;   // 640px world
+const H            = ROWS * TILE;   // 800px world
+const CLAIM_TARGET = 0.80;
+
+const OPEN=0, BORDER=1, CLAIMED=2, DRAWING=3;
+
+const C = {
+  bg:        '#0a1a0a',
+  dot:       '#1a3a1a',
+  border:    '#00cc00',
+  borderHi:  '#66ff66',
+  claimed:   '#0a3a0a',
+  claimedFg: '#1a6a1a',
+  drawing:   '#ff7700',
+  drawHi:    '#ffcc00',
+  player:    '#00ff66',
+  playerGlow:'rgba(0,255,100,0.35)',
+  enemy:     ['#ff4444','#4488ff','#ffcc22','#ee44ff'],
+};
+
+// ═══════════════════════════════════════════════════
+// CANVAS
+// ═══════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let viewW, viewH;
+
+function resize() {
+  const wrap = document.getElementById('gameWrapper');
+  viewW = wrap.clientWidth;
+  viewH = wrap.clientHeight;
+  canvas.width  = viewW;
+  canvas.height = viewH;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+const S = { MENU:0, PLAYING:1, BANNER:2, GAMEOVER:3 };
+let gameState = S.MENU;
+
+let grid, player, enemies, drawPath;
+let lives, score, level, claimedCount, totalOpen, levelBannerTimer;
+let keys = {};
+let camX=0, camY=0;
+
+// ═══════════════════════════════════════════════════
+// GRID
+// ═══════════════════════════════════════════════════
+function initGrid() {
+  grid = new Uint8Array(COLS * ROWS);
+  for (let r=0; r<ROWS; r++)
+    for (let c=0; c<COLS; c++)
+      grid[r*COLS+c] = (r===0||r===ROWS-1||c===0||c===COLS-1) ? BORDER : OPEN;
+  totalOpen    = (COLS-2)*(ROWS-2);
+  claimedCount = 0;
+}
+
+const gc = (r,c) => (r<0||r>=ROWS||c<0||c>=COLS) ? -1 : grid[r*COLS+c];
+const sc = (r,c,v) => { if(r>=0&&r<ROWS&&c>=0&&c<COLS) grid[r*COLS+c]=v; };
+
+// ═══════════════════════════════════════════════════
+// PLAYER
+// ═══════════════════════════════════════════════════
+function initPlayer() {
+  player = { col:Math.floor(COLS/2), row:0, alive:true, drawing:false, moveTimer:0, moveDelay:4 };
+  drawPath = [];
+}
+
+function killPlayer() {
+  if (!player.alive) return;
+  player.alive = false;
+  for (const [r,c] of drawPath) if (gc(r,c)===DRAWING) sc(r,c,OPEN);
+  drawPath = [];
+  lives--;
+  updateHUD();
+  setTimeout(() => lives<=0 ? showGameOver() : initPlayer(), 800);
+}
+
+function updatePlayer() {
+  if (!player.alive) return;
+  if (++player.moveTimer < player.moveDelay) return;
+  player.moveTimer = 0;
+
+  let dc=0, dr=0;
+  if (keys.ArrowUp||keys.w)    dr=-1;
+  if (keys.ArrowDown||keys.s)  dr=1;
+  if (keys.ArrowLeft||keys.a)  dc=-1;
+  if (keys.ArrowRight||keys.d) dc=1;
+  if (!dc&&!dr) return;
+
+  const nr=player.row+dr, nc=player.col+dc;
+  if (nr<0||nr>=ROWS||nc<0||nc>=COLS) return;
+
+  const t=gc(nr,nc);
+  if (t===BORDER||t===CLAIMED) {
+    if (player.drawing && drawPath.length>1) completeShape();
+    player.drawing=false; drawPath=[];
+    player.col=nc; player.row=nr;
+  } else if (t===OPEN) {
+    for (const [pr,pc] of drawPath) if (pr===nr&&pc===nc) { killPlayer(); return; }
+    player.drawing=true;
+    sc(nr,nc,DRAWING);
+    drawPath.push([nr,nc]);
+    player.col=nc; player.row=nr;
+  } else if (t===DRAWING) {
+    killPlayer();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// SHAPE FILL
+// ═══════════════════════════════════════════════════
+function completeShape() {
+  for (const [r,c] of drawPath) sc(r,c,BORDER);
+
+  // BFS flood from each enemy on a scratch copy to determine which side is theirs
+  const scratch = new Uint8Array(grid);
+  for (const e of enemies) {
+    bfsMark(scratch, (e.py/TILE)|0, (e.px/TILE)|0, OPEN, 99);
+  }
+
+  // Claim cells not reachable by any enemy
+  let gained=0;
+  for (let i=0; i<scratch.length; i++) {
+    if (scratch[i]===OPEN) { grid[i]=CLAIMED; gained++; }
+  }
+
+  // Teleport any enemy now inside a solid cell to nearest open cell
+  for (const e of enemies) {
+    if (enemyOverlapsSolid(e.px, e.py)) {
+      teleportToOpen(e);
+    }
+  }
+
+  claimedCount += gained;
+  score += gained * 8 * level;
+  player.drawing=false; drawPath=[];
+  updateHUD();
+
+  if (getClaimedPct()>=CLAIM_TARGET) setTimeout(()=>{ level++; showBanner(); }, 500);
+}
+
+// BFS to find nearest OPEN cell from a starting position
+function findNearestOpen(startR, startC) {
+  const visited = new Uint8Array(COLS*ROWS);
+  const q = [[startR, startC]]; let h=0;
+  visited[startR*COLS+startC]=1;
+  while (h<q.length) {
+    const [r,c]=q[h++];
+    if (gc(r,c)===OPEN) return [r,c];
+    for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]) {
+      const nr=r+dr, nc=c+dc;
+      if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!visited[nr*COLS+nc]) {
+        visited[nr*COLS+nc]=1; q.push([nr,nc]);
+      }
+    }
+  }
+  return null;
+}
+
+function bfsMark(arr, sr, sc2, from, to) {
+  if (sr<0||sr>=ROWS||sc2<0||sc2>=COLS||arr[sr*COLS+sc2]!==from) return;
+  const q=[[sr,sc2]]; arr[sr*COLS+sc2]=to; let h=0;
+  while (h<q.length) {
+    const [r,c]=q[h++];
+    for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr=r+dr, nc=c+dc;
+      if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&arr[nr*COLS+nc]===from) {
+        arr[nr*COLS+nc]=to; q.push([nr,nc]);
+      }
+    }
+  }
+}
+
+const getClaimedPct = () => claimedCount/totalOpen;
+
+// ═══════════════════════════════════════════════════
+// ENEMIES
+// ═══════════════════════════════════════════════════
+// Half-size of enemy bounding box in pixels (slightly smaller than TILE so it fits in a cell)
+const EHALF = TILE * 0.45;
+
+// Returns true if a world-pixel point is inside a solid cell
+function isSolidPx(wx, wy) {
+  const r=(wy/TILE)|0, c=(wx/TILE)|0;
+  const v=gc(r,c);
+  return v===BORDER||v===CLAIMED;
+}
+
+// Returns true if the enemy AABB at (wx,wy) overlaps any solid cell
+function enemyOverlapsSolid(wx, wy) {
+  // Check all four corners of the bounding box
+  const x0=wx-EHALF, x1=wx+EHALF;
+  const y0=wy-EHALF, y1=wy+EHALF;
+  return isSolidPx(x0,y0)||isSolidPx(x1,y0)||isSolidPx(x0,y1)||isSolidPx(x1,y1);
+}
+
+// Build a list of guaranteed OPEN cell centers for safe spawning/teleport
+function getOpenCells() {
+  const open=[];
+  for (let r=2;r<ROWS-2;r++)
+    for (let c=2;c<COLS-2;c++)
+      if (gc(r,c)===OPEN) open.push([r,c]);
+  return open;
+}
+
+function randomOpenPos() {
+  // Pick random OPEN cell, return its pixel center
+  let tries=0;
+  while(tries++<200) {
+    const r=2+Math.floor(Math.random()*(ROWS-4));
+    const c=2+Math.floor(Math.random()*(COLS-4));
+    if (gc(r,c)===OPEN && !enemyOverlapsSolid(c*TILE+TILE/2, r*TILE+TILE/2))
+      return [c*TILE+TILE/2, r*TILE+TILE/2];
+  }
+  // Fallback: scan from top-left
+  for (let r=2;r<ROWS-2;r++)
+    for (let c=2;c<COLS-2;c++)
+      if (gc(r,c)===OPEN) return [c*TILE+TILE/2, r*TILE+TILE/2];
+  return [W/2, H/2];
+}
+
+function spawnEnemies(count) {
+  enemies=[];
+  for (let i=0;i<count;i++) {
+    const [px,py] = randomOpenPos();
+    // Start at a random diagonal-ish angle (never axis-aligned)
+    const a = (Math.random()*0.6+0.2)*Math.PI + Math.floor(Math.random()*4)*(Math.PI/2);
+    const spd = 0.8 + i*0.15 + Math.random()*0.3 + level*0.08;
+    enemies.push({
+      px, py,
+      vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      kind: i%4,
+      stuckCheckX: px, stuckCheckY: py,   // position at last stuck check
+      stuckTimer: 0,                        // frames since last stuck check
+    });
+  }
+}
+
+function teleportToOpen(e) {
+  const [px,py]=randomOpenPos();
+  e.px=px; e.py=py;
+  // Full random angle on teleport, guaranteed diagonal
+  const a = Math.random()*Math.PI*2;
+  const spd = Math.hypot(e.vx,e.vy) || 1.0;
+  e.vx=Math.cos(a)*spd; e.vy=Math.sin(a)*spd;
+  e.stuckCheckX=px; e.stuckCheckY=py; e.stuckTimer=0;
+}
+
+function applyBounce(e, reflectX, reflectY) {
+  const spd = Math.hypot(e.vx, e.vy);
+
+  // Reflect
+  if (reflectX) e.vx = -e.vx;
+  if (reflectY) e.vy = -e.vy;
+
+  // Add ±50° jitter to current angle
+  let angle = Math.atan2(e.vy, e.vx);
+  angle += (Math.random() - 0.5) * (Math.PI * 0.55);
+
+  // Enforce min 20° off-axis so birds can't hug walls
+  const MIN_OFF = Math.PI * 0.111; // 20°
+  if (reflectX) {
+    // After X-wall hit, need meaningful vy (sin of angle not near zero)
+    if (Math.abs(Math.sin(angle)) < Math.sin(MIN_OFF)) {
+      angle = (Math.sin(angle) >= 0 ? 1 : -1) * MIN_OFF + (Math.cos(angle) >= 0 ? 0 : Math.PI);
+    }
+  }
+  if (reflectY) {
+    // After Y-wall hit, need meaningful vx (cos of angle not near zero)
+    if (Math.abs(Math.cos(angle)) < Math.sin(MIN_OFF)) {
+      angle = Math.PI/2 * (Math.sin(angle) >= 0 ? 1 : -1) - (Math.cos(angle) >= 0 ? 1 : -1) * MIN_OFF;
+    }
+  }
+
+  e.vx = Math.cos(angle) * spd;
+  e.vy = Math.sin(angle) * spd;
+
+  // NaN guard — fall back to safe 45° diagonal at original speed
+  if (!isFinite(e.vx) || !isFinite(e.vy) || spd === 0) {
+    const a = Math.PI/4 + Math.floor(Math.random()*4) * Math.PI/2;
+    const s = spd || 1.0;
+    e.vx = Math.cos(a) * s;
+    e.vy = Math.sin(a) * s;
+  }
+}
+
+const STUCK_FRAMES = 60;  // check every 60 frames (~1 sec)
+const STUCK_DIST  = TILE; // must move at least 1 tile or considered stuck
+
+function updateEnemies() {
+  for (const e of enemies) {
+
+    // --- Stuck detection (every STUCK_FRAMES frames) ---
+    e.stuckTimer++;
+    if (e.stuckTimer >= STUCK_FRAMES) {
+      const dx = e.px - e.stuckCheckX;
+      const dy = e.py - e.stuckCheckY;
+      if (Math.hypot(dx,dy) < STUCK_DIST) {
+        // Hasn't moved enough — teleport to two positions away from current
+        teleportToOpen(e);
+        continue;
+      }
+      e.stuckCheckX = e.px;
+      e.stuckCheckY = e.py;
+      e.stuckTimer  = 0;
+    }
+
+    // --- Move X, check AABB ---
+    const nx = e.px + e.vx;
+    if (enemyOverlapsSolid(nx, e.py)) {
+      applyBounce(e, true, false);
+      const nx2 = e.px + e.vx;
+      e.px = enemyOverlapsSolid(nx2, e.py) ? e.px : nx2;
+    } else {
+      e.px = nx;
+    }
+
+    // --- Move Y, check AABB ---
+    const ny = e.py + e.vy;
+    if (enemyOverlapsSolid(e.px, ny)) {
+      applyBounce(e, false, true);
+      const ny2 = e.py + e.vy;
+      e.py = enemyOverlapsSolid(e.px, ny2) ? e.py : ny2;
+    } else {
+      e.py = ny;
+    }
+
+    // Clamp to world bounds
+    e.px = Math.max(TILE+EHALF+1, Math.min(W-TILE-EHALF-1, e.px));
+    e.py = Math.max(TILE+EHALF+1, Math.min(H-TILE-EHALF-1, e.py));
+
+    // Nuclear escape: if still overlapping solid, teleport
+    if (enemyOverlapsSolid(e.px, e.py)) {
+      teleportToOpen(e);
+      continue;
+    }
+
+    // --- Game collision checks ---
+    const er=(e.py/TILE)|0, ec=(e.px/TILE)|0;
+    // Line hit: always deadly while drawing
+    if (player.alive && player.drawing && gc(er,ec)===DRAWING) { killPlayer(); continue; }
+    // Body hit: only deadly while drawing (on wall = safe)
+    if (player.alive && player.drawing && Math.abs(er-player.row)<=1 && Math.abs(ec-player.col)<=1) killPlayer();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// CAMERA
+// ═══════════════════════════════════════════════════
+function updateCamera() {
+  const tx=player.col*TILE+TILE/2-viewW/2;
+  const ty=player.row*TILE+TILE/2-viewH/2;
+  camX+=(tx-camX)*0.12;
+  camY+=(ty-camY)*0.12;
+  camX=Math.max(0,Math.min(W-viewW,camX));
+  camY=Math.max(0,Math.min(H-viewH,camY));
+}
+
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
+function drawScene() {
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,viewW,viewH);
+  const cx=Math.floor(camX), cy=Math.floor(camY);
+
+  const c0=Math.max(0,Math.floor(cx/TILE)-1);
+  const c1=Math.min(COLS-1,Math.ceil((cx+viewW)/TILE)+1);
+  const r0=Math.max(0,Math.floor(cy/TILE)-1);
+  const r1=Math.min(ROWS-1,Math.ceil((cy+viewH)/TILE)+1);
+
+  for (let r=r0;r<=r1;r++) {
+    for (let c=c0;c<=c1;c++) {
+      const v=grid[r*COLS+c];
+      const sx=c*TILE-cx, sy=r*TILE-cy;
+      if (v===OPEN) {
+        ctx.fillStyle=C.dot;
+        ctx.fillRect(sx+TILE/2,sy+TILE/2,1,1);
+      } else if (v===BORDER) {
+        ctx.fillStyle=C.border;
+        ctx.fillRect(sx,sy,TILE,TILE);
+        ctx.fillStyle=C.borderHi;
+        ctx.fillRect(sx,sy,TILE,1);
+        ctx.fillRect(sx,sy,1,TILE);
+      } else if (v===CLAIMED) {
+        ctx.fillStyle=C.claimed;
+        ctx.fillRect(sx,sy,TILE,TILE);
+        ctx.fillStyle=C.claimedFg;
+        ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);
+      } else if (v===DRAWING) {
+        ctx.fillStyle=C.drawing;
+        ctx.fillRect(sx,sy,TILE,TILE);
+        ctx.fillStyle=C.drawHi;
+        ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);
+      }
+    }
+  }
+
+  // Enemies — single TILE-sized pixel square
+  for (const e of enemies) {
+    const sx=Math.floor(e.px)-cx, sy=Math.floor(e.py)-cy;
+    if (sx<-TILE||sx>viewW||sy<-TILE||sy>viewH) continue;
+    ctx.fillStyle=C.enemy[e.kind];
+    ctx.fillRect(sx,sy,TILE,TILE);
+    // bright 1px center
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);
+  }
+
+  // Player — single TILE pixel + glow halo
+  if (player.alive||(Math.floor(Date.now()/100)%2===0)) {
+    const sx=player.col*TILE-cx, sy=player.row*TILE-cy;
+    ctx.fillStyle=C.playerGlow;
+    ctx.fillRect(sx-2,sy-2,TILE+4,TILE+4);
+    ctx.fillStyle=C.player;
+    ctx.fillRect(sx,sy,TILE,TILE);
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);
+  }
+
+  drawMinimap(cx,cy);
+}
+
+function drawMinimap(cx,cy) {
+  const mmW=64,mmH=50,mmX=viewW-mmW-4,mmY=6;
+  ctx.fillStyle='rgba(0,12,0,0.88)';
+  ctx.fillRect(mmX,mmY,mmW,mmH);
+  ctx.strokeStyle='#2a6a2a'; ctx.lineWidth=1;
+  ctx.strokeRect(mmX,mmY,mmW,mmH);
+
+  const sx=mmW/W, sy=mmH/H;
+  // Draw claimed/border blocks (sampled)
+  const step=4;
+  for (let r=0;r<ROWS;r+=step) {
+    for (let c=0;c<COLS;c+=step) {
+      const v=grid[r*COLS+c];
+      if (v===OPEN) continue;
+      ctx.fillStyle=v===BORDER?'#00cc00':v===CLAIMED?'#1a5a1a':C.drawing;
+      ctx.fillRect(mmX+c*sx,mmY+r*sy,Math.ceil(step*sx)+1,Math.ceil(step*sy)+1);
+    }
+  }
+
+  // Enemies
+  for (const e of enemies) {
+    ctx.fillStyle=C.enemy[e.kind];
+    ctx.fillRect(mmX+(e.px/W)*mmW-0.5,mmY+(e.py/H)*mmH-0.5,2,2);
+  }
+
+  // Player dot
+  ctx.fillStyle=C.player;
+  ctx.fillRect(mmX+player.col*(mmW/(COLS))-1,mmY+player.row*(mmH/(ROWS))-1,3,3);
+
+  // Viewport rect
+  ctx.strokeStyle='rgba(0,255,102,0.5)'; ctx.lineWidth=1;
+  ctx.strokeRect(mmX+cx*sx,mmY+cy*sy,viewW*sx,viewH*sy);
+}
+
+// ═══════════════════════════════════════════════════
+// HUD
+// ═══════════════════════════════════════════════════
+function updateHUD() {
+  document.getElementById('hudLevel').textContent=level||1;
+  document.getElementById('hudPct').textContent=Math.floor((getClaimedPct()||0)*100);
+  document.getElementById('hudLives').textContent=lives||0;
+  document.getElementById('hudScore').textContent=score||0;
+  document.getElementById('progressFill').style.width=(getClaimedPct()||0)*100+'%';
+}
+
+// ═══════════════════════════════════════════════════
+// SCREENS
+// ═══════════════════════════════════════════════════
+function showBanner() {
+  gameState=S.BANNER; levelBannerTimer=140;
+  const b=document.getElementById('bannerScreen');
+  b.classList.remove('hidden');
+  document.getElementById('bannerTitle').textContent='LEVEL '+level;
+  document.getElementById('bannerSub').textContent=level===1?'GET READY!':(level+1)+' ENEMY BIRDS!';
+}
+function hideBanner() { document.getElementById('bannerScreen').classList.add('hidden'); }
+
+function showGameOver() {
+  gameState=S.GAMEOVER;
+  document.getElementById('goStats').innerHTML=
+    'SCORE: '+score+'<br>LEVEL: '+level+'<br>CLAIMED: '+Math.floor(getClaimedPct()*100)+'%';
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+}
+
+function showMenu() {
+  gameState=S.MENU;
+  document.getElementById('menuScreen').classList.remove('hidden');
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('bannerScreen').classList.add('hidden');
+}
+
+// ═══════════════════════════════════════════════════
+// GAME FLOW
+// ═══════════════════════════════════════════════════
+function startGame() {
+  level=1; lives=3; score=0;
+  document.getElementById('menuScreen').classList.add('hidden');
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  initGrid(); initPlayer(); spawnEnemies(level+1);
+  updateHUD();
+  showBanner();
+}
+
+function startLevel() {
+  initGrid(); initPlayer(); spawnEnemies(level+1);
+  updateHUD(); gameState=S.PLAYING;
+}
+
+// ═══════════════════════════════════════════════════
+// LOOP
+// ═══════════════════════════════════════════════════
+function loop() {
+  switch(gameState) {
+    case S.PLAYING:
+      updatePlayer(); updateEnemies(); updateCamera(); drawScene(); break;
+    case S.BANNER:
+      updateCamera(); drawScene();
+      if (--levelBannerTimer<=0) { hideBanner(); startLevel(); }
+      break;
+    default:
+      if (grid) { updateCamera(); drawScene(); } break;
+  }
+  requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════════
+document.addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup',e=>{ keys[e.key]=false; });
+
+function bindBtn(id,key) {
+  const btn=document.getElementById(id);
+  const on=()=>{ keys[key]=true; btn.classList.add('on'); };
+  const off=()=>{ keys[key]=false; btn.classList.remove('on'); };
+  btn.addEventListener('touchstart',e=>{ e.preventDefault(); on(); },{passive:false});
+  btn.addEventListener('touchend',  e=>{ e.preventDefault(); off();},{passive:false});
+  btn.addEventListener('touchcancel',e=>{ e.preventDefault(); off();},{passive:false});
+  btn.addEventListener('mousedown',on);
+  document.addEventListener('mouseup',off);
+}
+bindBtn('btnU','ArrowUp'); bindBtn('btnD','ArrowDown');
+bindBtn('btnL','ArrowLeft'); bindBtn('btnR','ArrowRight');
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('retryBtn').addEventListener('click', startGame);
+document.getElementById('goMenuBtn').addEventListener('click', showMenu);
+document.getElementById('menuBtn').addEventListener('click',()=>{
+  if(gameState===S.PLAYING||gameState===S.BANNER) showMenu();
+});
+
+// ═══════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════
+level=1; lives=3; score=0;
+initGrid(); initPlayer(); spawnEnemies(2); updateHUD();
+camX=W/2-viewW/2; camY=H/2-viewH/2;
+loop();
+</script>
+</body>
+</html>
